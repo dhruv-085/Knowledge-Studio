@@ -1,0 +1,177 @@
+[
+  {
+    "id": "rag-definition",
+    "question": "What does retrieval-augmented generation combine?",
+    "expected_document_ids": ["rag-fundamentals"],
+    "expected_information": ["document retrieval", "language generation"],
+    "question_type": "direct"
+  },
+  {
+    "id": "rag-hallucination-limitation",
+    "question": "Does RAG guarantee that every answer is true?",
+    "expected_document_ids": ["rag-fundamentals"],
+    "expected_information": ["RAG can reduce unsupported answers", "RAG does not guarantee truth"],
+    "question_type": "limitation"
+  },
+  {
+    "id": "rag-vs-finetuning",
+    "question": "How is RAG different from fine-tuning?",
+    "expected_document_ids": ["rag-fundamentals"],
+    "expected_information": ["fine-tuning changes model parameters", "RAG supplies context at request time"],
+    "question_type": "comparison"
+  },
+  {
+    "id": "rag-citation-provenance",
+    "question": "Why should retrieved chunks retain document and section metadata?",
+    "expected_document_ids": ["rag-fundamentals"],
+    "expected_information": ["to preserve provenance", "to support traceable citations"],
+    "question_type": "paraphrase"
+  },
+  {
+    "id": "embedding-definition",
+    "question": "What is an embedding?",
+    "expected_document_ids": ["embeddings-and-search"],
+    "expected_information": ["a fixed-length numerical vector representing text"],
+    "question_type": "direct"
+  },
+  {
+    "id": "cosine-similarity",
+    "question": "What does cosine similarity compare?",
+    "expected_document_ids": ["embeddings-and-search"],
+    "expected_information": ["the angle between vectors"],
+    "question_type": "direct"
+  },
+  {
+    "id": "top-k-search",
+    "question": "What does top-k mean in vector search?",
+    "expected_document_ids": ["embeddings-and-search"],
+    "expected_information": ["the k passages with the highest similarity scores"],
+    "question_type": "paraphrase"
+  },
+  {
+    "id": "exact-identifier-retrieval",
+    "question": "Which search approach is useful for the literal key MAX_RETRIES?",
+    "expected_document_ids": ["embeddings-and-search", "api-retries"],
+    "expected_information": ["lexical search is strong for exact identifiers"],
+    "question_type": "multi-document"
+  },
+  {
+    "id": "hybrid-search-purpose",
+    "question": "Why combine lexical and semantic retrieval?",
+    "expected_document_ids": ["embeddings-and-search"],
+    "expected_information": ["to support both exact matches and meaning-based matches"],
+    "question_type": "conceptual"
+  },
+  {
+    "id": "attention-mechanism",
+    "question": "How does self-attention create a context-aware token representation?",
+    "expected_document_ids": ["transformer-attention"],
+    "expected_information": ["queries are compared with keys", "weighted values are combined"],
+    "question_type": "direct"
+  },
+  {
+    "id": "attention-long-range",
+    "question": "What problem does attention help with when words are far apart?",
+    "expected_document_ids": ["transformer-attention"],
+    "expected_information": ["connecting distant words or references"],
+    "question_type": "paraphrase"
+  },
+  {
+    "id": "attention-heads",
+    "question": "Why can multiple attention heads be useful?",
+    "expected_document_ids": ["transformer-attention"],
+    "expected_information": ["they can learn different relationships at the same time"],
+    "question_type": "conceptual"
+  },
+  {
+    "id": "transformer-cost",
+    "question": "How does standard self-attention scale with sequence length?",
+    "expected_document_ids": ["transformer-attention"],
+    "expected_information": ["memory and computation grow roughly quadratically"],
+    "question_type": "limitation"
+  },
+  {
+    "id": "python-blocks",
+    "question": "What tells Python which statements belong to a code block?",
+    "expected_document_ids": ["python-runtime"],
+    "expected_information": ["consistent indentation after a colon"],
+    "question_type": "paraphrase"
+  },
+  {
+    "id": "python-containers",
+    "question": "Which Python collection maps keys to values?",
+    "expected_document_ids": ["python-runtime"],
+    "expected_information": ["a dictionary"],
+    "question_type": "direct"
+  },
+  {
+    "id": "python-mutable-alias",
+    "question": "Why can changing a list through one name affect another name?",
+    "expected_document_ids": ["python-runtime"],
+    "expected_information": ["both names can refer to the same mutable object"],
+    "question_type": "conceptual"
+  },
+  {
+    "id": "python-import-error",
+    "question": "What is one common reason for a Python import error?",
+    "expected_document_ids": ["python-runtime"],
+    "expected_information": ["the interpreter cannot find the package on its module search path"],
+    "question_type": "debugging"
+  },
+  {
+    "id": "retry-limit",
+    "question": "What does MAX_RETRIES control?",
+    "expected_document_ids": ["api-retries"],
+    "expected_information": ["the number of retry attempts after the initial request"],
+    "question_type": "exact-identifier"
+  },
+  {
+    "id": "retry-tradeoff",
+    "question": "What is the benefit and cost of allowing more retries?",
+    "expected_document_ids": ["api-retries"],
+    "expected_information": ["improved resilience", "higher latency and extra service load"],
+    "question_type": "comparison"
+  },
+  {
+    "id": "backoff-jitter",
+    "question": "Why add jitter to exponential backoff?",
+    "expected_document_ids": ["api-retries"],
+    "expected_information": ["to prevent synchronized retry storms"],
+    "question_type": "paraphrase"
+  },
+  {
+    "id": "unsafe-retry",
+    "question": "Why should clients be cautious retrying non-idempotent operations?",
+    "expected_document_ids": ["api-retries"],
+    "expected_information": ["repeating a request can create a duplicate side effect"],
+    "question_type": "limitation"
+  },
+  {
+    "id": "rag-and-embeddings",
+    "question": "How do embeddings contribute to a RAG pipeline?",
+    "expected_document_ids": ["rag-fundamentals", "embeddings-and-search"],
+    "expected_information": ["text is represented as vectors", "vectors help retrieve relevant passages"],
+    "question_type": "multi-document"
+  },
+  {
+    "id": "retrieval-not-proof",
+    "question": "Does a high vector similarity score prove that a passage answers the question?",
+    "expected_document_ids": ["embeddings-and-search"],
+    "expected_information": ["similarity is not proof", "the retrieved text still needs inspection"],
+    "question_type": "limitation"
+  },
+  {
+    "id": "missing-docker-answer",
+    "question": "How does Docker guarantee that a RAG answer is faithful?",
+    "expected_document_ids": [],
+    "expected_information": [],
+    "question_type": "insufficient-evidence"
+  },
+  {
+    "id": "missing-database-choice",
+    "question": "Which database should this system use in production?",
+    "expected_document_ids": [],
+    "expected_information": [],
+    "question_type": "insufficient-evidence"
+  }
+]

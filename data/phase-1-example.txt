@@ -1,0 +1,5 @@
+Python uses indentation to define code blocks. Lists and dictionaries are common built-in data structures.
+
+The system terminates inactive sessions after 30 minutes. Users must sign in again after a session expires.
+
+MAX_RETRIES controls how many times a failed request may be attempted. Increasing it can improve resilience but may increase latency.

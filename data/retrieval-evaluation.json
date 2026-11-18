@@ -1,0 +1,110 @@
+[
+  {
+    "id": "paraphrase-session-duration",
+    "question": "How long can I remain logged in without activity?",
+    "expected_passage_ids": [2],
+    "purpose": "Tests semantic retrieval of a paraphrased session-expiration question."
+  },
+  {
+    "id": "session-expiration-event",
+    "question": "When does an inactive session expire?",
+    "expected_passage_ids": [2],
+    "purpose": "Tests retrieval of the inactivity timeout fact."
+  },
+  {
+    "id": "authentication-after-timeout",
+    "question": "When must a user sign in again?",
+    "expected_passage_ids": [2],
+    "purpose": "Tests retrieval of the re-authentication consequence."
+  },
+  {
+    "id": "exact-configuration-key",
+    "question": "What does MAX_RETRIES control?",
+    "expected_passage_ids": [3],
+    "purpose": "Tests whether lexical retrieval preserves an exact configuration identifier."
+  },
+  {
+    "id": "retry-setting-purpose",
+    "question": "What is the retry limit setting used for?",
+    "expected_passage_ids": [3],
+    "purpose": "Tests a paraphrase of the retry configuration behavior."
+  },
+  {
+    "id": "retry-latency-tradeoff",
+    "question": "What is the downside of increasing the retry count?",
+    "expected_passage_ids": [3],
+    "purpose": "Tests retrieval of the latency trade-off."
+  },
+  {
+    "id": "python-code-blocks",
+    "question": "How are Python code blocks defined?",
+    "expected_passage_ids": [1],
+    "purpose": "Tests a question where both recognizable terms and a concept are present."
+  },
+  {
+    "id": "python-indentation",
+    "question": "What determines the structure of a Python block?",
+    "expected_passage_ids": [1],
+    "purpose": "Tests a conceptual paraphrase of the Python passage."
+  },
+  {
+    "id": "python-data-structures",
+    "question": "Which built-in structures are mentioned for Python?",
+    "expected_passage_ids": [1],
+    "purpose": "Tests retrieval of the list and dictionary statement."
+  },
+  {
+    "id": "session-idle-grace-period",
+    "question": "What is the system's idle-login grace period before credentials are requested again?",
+    "expected_passage_ids": [2],
+    "purpose": "Hard paraphrase of the inactivity timeout and re-authentication behavior."
+  },
+  {
+    "id": "session-invalidated-by-inactivity",
+    "question": "What event causes an authenticated user's session to become invalid?",
+    "expected_passage_ids": [2],
+    "purpose": "Tests whether reranking connects invalidation with session inactivity."
+  },
+  {
+    "id": "post-expiration-request",
+    "question": "How does the service handle a request after the inactivity window has elapsed?",
+    "expected_passage_ids": [2],
+    "purpose": "Tests retrieval of the re-authentication consequence using different wording."
+  },
+  {
+    "id": "retry-attempt-governor",
+    "question": "Which setting governs how many attempts are made when an operation fails?",
+    "expected_passage_ids": [3],
+    "purpose": "Paraphrases MAX_RETRIES without naming the identifier."
+  },
+  {
+    "id": "retry-benefit-and-cost",
+    "question": "If a request keeps failing, what benefit and cost come from allowing more attempts?",
+    "expected_passage_ids": [3],
+    "purpose": "Tests the resilience-versus-latency trade-off with different phrasing."
+  },
+  {
+    "id": "retry-resilience-latency-tradeoff",
+    "question": "Which configuration trades greater recovery capability for slower responses?",
+    "expected_passage_ids": [3],
+    "purpose": "Tests whether the reranker connects recovery capability and latency to retries."
+  },
+  {
+    "id": "python-block-boundaries",
+    "question": "What language convention tells Python where a block starts and finishes?",
+    "expected_passage_ids": [1],
+    "purpose": "Paraphrases indentation-based block structure."
+  },
+  {
+    "id": "python-native-containers",
+    "question": "Which standard collection types are identified as common Python containers?",
+    "expected_passage_ids": [1],
+    "purpose": "Tests retrieval of lists and dictionaries without using the original wording."
+  },
+  {
+    "id": "python-structural-whitespace",
+    "question": "How does whitespace determine the organization of executable Python statements?",
+    "expected_passage_ids": [1],
+    "purpose": "Tests a conceptual paraphrase of indentation defining code blocks."
+  }
+]

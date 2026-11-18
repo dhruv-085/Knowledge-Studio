@@ -496,11 +496,15 @@ The vector index may remain a separate local or dedicated store depending on the
 
 ### Phase 13 — Frontend
 
-**Outcome:** A React/TypeScript interface supports document upload, chat, source inspection, and conversation selection.
+**Status:** First local React/TypeScript vertical slice is implemented. The UI
+uses conversation-scoped uploads, persistent messages, grounded answer
+metadata, and expandable source cards. See `README.md` for local startup steps.
+
+**Outcome:** A React/TypeScript interface supports document upload, chat, source inspection, and conversation selection. Implement the first useful vertical slice directly against the FastAPI service; keep polish and scope focused on a single user and local development.
 
 **We will learn:** API integration, loading and error states, citations as a user interface, streaming versus non-streaming answers, and accessible interaction design.
 
-The first frontend should remain intentionally small:
+The first frontend should remain intentionally small and usable:
 
 - document list and upload;
 - chat history;
@@ -508,6 +512,15 @@ The first frontend should remain intentionally small:
 - answer display;
 - expandable source citations; and
 - clear feedback when evidence is insufficient.
+
+The API contract for this phase is:
+
+- `GET/POST /conversations` to restore or start an isolated chat;
+- `GET /conversations/{id}/messages` to restore saved turns and answer sources;
+- `GET/POST /documents?conversation_id={id}` to list or attach files to that chat;
+- `POST /chat` with the active conversation ID to answer from its sources and recent history.
+
+Fast-track rule: ship the working experience in small vertical slices. Keep learning notes to a concise state/decision update at meaningful milestones. Do not add accounts, streaming, a separate design system, or deployment infrastructure in this phase. The user has authorized autonomous file changes, so implementation can proceed without presenting each patch for approval.
 
 ### Phase 14 — Production concerns
 

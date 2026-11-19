@@ -71,7 +71,7 @@ def load_pdf_document(
             (page_number, page.extract_text() or "")
             for page_number, page in enumerate(reader.pages, start=1)
         )
-    except PdfReadError as error:
+    except (PdfReadError, Exception) as error:
         raise ValueError(f"could not read PDF: {error}") from error
 
     if not any(text.strip() for _, text in page_texts):

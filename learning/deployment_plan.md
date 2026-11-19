@@ -101,13 +101,14 @@ User's browser saves the answer and citations in IndexedDB
 - [x] Frontend IndexedDB persistence and export/delete controls implemented
 - [x] Request bounds, per-process rate limiting, encoder reuse, timeout, and retry recovery implemented
 - [x] Gemini embeddings migration (`models/gemini-embedding-001`, 768-dim batch indexing) implemented for 512 MiB Render free tier
-- [x] 100% backend tests (109 tests) and frontend production build verified
+- [x] Security hardening (reverse proxy `x-forwarded-for` IP parsing, document upload rate limiting, HTTP security headers, sanitized PDF exception handling) implemented
+- [x] 100% backend tests (113 tests) and frontend production build verified
 - [ ] Cloudflare Pages configured
 - [ ] Render configured
 - [x] README and learning notes updated
 - [ ] Deployed flow verified
 
 Repository changes are in place. The frontend production build, Python source
-compilation, and all 109 backend tests have succeeded. Creating the hosted services still requires a Git
+compilation, and all 113 backend tests have succeeded. Creating the hosted services still requires a Git
 provider connection, a Gemini key, and the Pages origin for the Render CORS
 setting. The deployment has not been performed.

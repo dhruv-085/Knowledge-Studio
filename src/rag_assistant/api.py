@@ -149,6 +149,21 @@ class _RateLimiter:
             return True
 
 
+def extract_client_ip(http_request: Request) -> str:
+    """Safely extract and validate client IP from reverse proxies or direct connection."""
+    forwarded_ip = http_request.headers.get("cf-connecting-ip")
+    if not forwarded_ip:
+        forwarded_for = http_request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            forwarded_ip = forwarded_for.split(",")[0].strip()
+    if forwarded_ip:
+        try:
+            return ip_address(forwarded_ip.strip()).compressed
+        except ValueError:
+            pass
+    return http_request.client.host if http_request.client else "unknown"
+
+
 def _document_input(payload: DocumentPayload) -> DocumentInput:
     return DocumentInput(
         document_id=payload.document_id,
@@ -170,7 +185,7 @@ def create_app(document_path: Path | None = None, *, database_path: Path | None 
         allow_origins=origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_headers=["*"],
     )
     app.state.rate_limiter = _RateLimiter(defaultdict(deque), Lock())
     app.state.encoder = None
@@ -180,6 +195,14 @@ def create_app(document_path: Path | None = None, *, database_path: Path | None 
         app.state.sample_document = load_document(document_path, document_id=document_path.stem)
     else:
         app.state.sample_document = None
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
     @app.middleware("http")
     async def bound_request_size(request: Request, call_next):
@@ -200,7 +223,10 @@ def create_app(document_path: Path | None = None, *, database_path: Path | None 
         return {"status": "ok"}
 
     @app.post("/documents", response_model=DocumentResponse, status_code=201)
-    async def parse_document(file: UploadFile = File(...)) -> DocumentResponse:
+    async def parse_document(http_request: Request, file: UploadFile = File(...)) -> DocumentResponse:
+        client_host = extract_client_ip(http_request)
+        if not app.state.rate_limiter.allow(f"doc:{client_host}"):
+            raise HTTPException(status_code=429, detail="Too many document uploads. Please wait a minute before uploading again.")
         filename = Path(file.filename or "").name
         suffix = Path(filename).suffix.lower()
         if suffix not in {".txt", ".md", ".markdown", ".pdf"}:
@@ -246,14 +272,8 @@ def create_app(document_path: Path | None = None, *, database_path: Path | None 
         question = request.question.strip()
         if looks_like_accidental_input(question):
             raise HTTPException(status_code=422, detail="That message looks incomplete. Please enter a question with a little more detail.")
-        client_host = http_request.client.host if http_request.client else "unknown"
-        forwarded_ip = http_request.headers.get("cf-connecting-ip")
-        if forwarded_ip:
-            try:
-                client_host = ip_address(forwarded_ip.strip()).compressed
-            except ValueError:
-                pass
-        if not app.state.rate_limiter.allow(client_host):
+        client_host = extract_client_ip(http_request)
+        if not app.state.rate_limiter.allow(f"chat:{client_host}"):
             raise HTTPException(status_code=429, detail="This service has reached 10 questions in one minute. Please wait before trying again.")
         documents = [_document_input(item) for item in request.documents]
         history = tuple((item.role, item.content) for item in request.history)

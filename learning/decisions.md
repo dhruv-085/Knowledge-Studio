@@ -9,7 +9,7 @@ uploads and answers chat requests without writing that user content to disk.
 This avoids relying on Render's temporary filesystem and keeps browser profiles
 separate without adding accounts or a database. The trade-off is that browser
 data does not sync, can be cleared by the user or browser, and is not a backup;
-the UI therefore offers JSON export and deletion controls. Each chat request
+the UI therefore offers JSON export, JSON import (for cross-browser migration and restore), and deletion controls. Each chat request
 transmits its selected documents and recent history to Render, and Gemini gets
 the evidence supplied for generation. This deployment decision supersedes the
 earlier SQLite-backed API persistence decision below; the SQLite store modules

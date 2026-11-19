@@ -329,7 +329,7 @@ body {
   overflow-y: auto;
 }
 .privacy-notice {
-  margin: 14px auto 0;
+  margin: 14px auto 20px;
   width: min(100%, 900px);
   border: 1px solid #e9dcc1;
   background: #fffaf0;
@@ -348,7 +348,6 @@ body {
 }
 .welcome {
   margin: auto auto 42px;
-  transform: translateY(-12px);
   text-align: center;
 }
 .welcome-orb {

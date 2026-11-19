@@ -110,3 +110,41 @@ def test_upload_rejects_image_only_pdf() -> None:
 def test_upload_rejects_unsupported_file_type() -> None:
     response = TestClient(create_app()).post("/documents", files={"file": ("notes.docx", b"not supported", "application/octet-stream")})
     assert response.status_code == 415
+
+
+def test_security_headers_present() -> None:
+    client = TestClient(create_app())
+    response = client.get("/health")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+
+
+def test_client_ip_extraction_from_headers() -> None:
+    from starlette.requests import Request
+    req1 = Request({"type": "http", "headers": [(b"cf-connecting-ip", b"203.0.113.10"), (b"x-forwarded-for", b"198.51.100.20")]})
+    assert api.extract_client_ip(req1) == "203.0.113.10"
+
+    req2 = Request({"type": "http", "headers": [(b"x-forwarded-for", b"198.51.100.20, 10.0.0.1")]})
+    assert api.extract_client_ip(req2) == "198.51.100.20"
+
+    req3 = Request({"type": "http", "headers": [(b"x-forwarded-for", b"malicious-string")], "client": ("127.0.0.1", 12345)})
+    assert api.extract_client_ip(req3) == "127.0.0.1"
+
+
+def test_document_upload_rate_limiting() -> None:
+    client = TestClient(create_app())
+    for _ in range(10):
+        res = client.post("/documents", files={"file": ("doc.txt", b"text content", "text/plain")}, headers={"x-forwarded-for": "192.0.2.1"})
+        assert res.status_code == 201
+    limited = client.post("/documents", files={"file": ("doc.txt", b"text content", "text/plain")}, headers={"x-forwarded-for": "192.0.2.1"})
+    assert limited.status_code == 429
+    assert "Too many document uploads" in limited.json()["detail"]
+
+
+def test_corrupted_pdf_upload_returns_400() -> None:
+    client = TestClient(create_app())
+    response = client.post("/documents", files={"file": ("corrupt.pdf", b"%PDF-1.4 corrupted binary junk", "application/pdf")})
+    assert response.status_code == 400
+    assert "could not read PDF" in response.json()["detail"]
+

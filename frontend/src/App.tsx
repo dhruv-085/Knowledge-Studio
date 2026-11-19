@@ -23,6 +23,7 @@ import {
   clearConversations,
   getAllConversations,
   getConversation,
+  importConversations,
   removeConversation,
   saveConversation,
   type LocalRecord,
@@ -84,7 +85,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, init);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || `Request failed (${response.status})`);
+    let message = `Request failed (${response.status})`;
+    if (typeof body.detail === "string") {
+      message = body.detail;
+    } else if (Array.isArray(body.detail) && body.detail.length > 0) {
+      message = body.detail.map((err: { msg?: string }) => err.msg || JSON.stringify(err)).join(", ");
+    }
+    throw new Error(message);
   }
   if (response.status === 204) return undefined as T;
   return response.json();
@@ -122,6 +129,7 @@ function App() {
     ).matches,
   );
   const fileInput = useRef<HTMLInputElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   const recordFor = (id: string, docs = documents, turns = messages): LocalRecord => ({
@@ -273,6 +281,10 @@ function App() {
     event.preventDefault();
     const text = question.trim();
     if (!text || busy) return;
+    if (!documents.length) {
+      setError("Please add at least one document before asking a question.");
+      return;
+    }
     if (looksLikeAccidentalInput(text)) {
       setError(
         "That message looks incomplete. Please enter a question with a little more detail.",
@@ -373,6 +385,53 @@ function App() {
       setError(e instanceof Error ? e.message : "Could not get an answer");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const importData = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as unknown;
+
+      const rawRecords =
+        Array.isArray(data)
+          ? data
+          : data && typeof data === "object" && "conversations" in data && Array.isArray((data as { conversations: unknown }).conversations)
+            ? (data as { conversations: unknown[] }).conversations
+            : null;
+
+      if (!rawRecords || !rawRecords.length) {
+        throw new Error("Invalid backup file: expected a JSON file with saved conversations.");
+      }
+
+      const validRecords: LocalRecord[] = rawRecords.filter(
+        (r): r is LocalRecord =>
+          Boolean(
+            r &&
+              typeof r === "object" &&
+              "conversation_id" in r &&
+              typeof (r as { conversation_id: unknown }).conversation_id === "string" &&
+              "messages" in r &&
+              Array.isArray((r as { messages: unknown }).messages),
+          ),
+      );
+
+      if (!validRecords.length) {
+        throw new Error("No valid conversation records found in this backup file.");
+      }
+
+      await importConversations(validRecords);
+      const updated = await refreshConversations();
+      if (updated.length) {
+        await openConversation(validRecords[0].conversation_id);
+      }
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not import backup data");
     }
   };
 
@@ -489,6 +548,16 @@ function App() {
           ))}
         </div>
         <div className="local-data-controls">
+          <input
+            type="file"
+            ref={importInput}
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={(e) => void importData(e)}
+          />
+          <button onClick={() => importInput.current?.click()} disabled={busy || uploading}>
+            Import browser data
+          </button>
           <button onClick={() => void exportData()} disabled={!conversations.length}>Export browser data</button>
           <button onClick={() => void clearAllData()} disabled={!conversations.length}>Clear all browser data</button>
         </div>
@@ -727,6 +796,10 @@ function App() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
+                      if (!documents.length) {
+                        setError("Please add at least one document before asking a question.");
+                        return;
+                      }
                       void sendQuestion(e as unknown as FormEvent);
                     }
                   }}

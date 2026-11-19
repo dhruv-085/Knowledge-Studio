@@ -55,3 +55,25 @@ export const getConversation = (id: string) => withStore<LocalRecord | undefined
 export const saveConversation = (record: LocalRecord) => withStore<IDBValidKey>("readwrite", (store) => store.put(record));
 export const removeConversation = (id: string) => withStore<undefined>("readwrite", (store) => store.delete(id));
 export const clearConversations = () => withStore<undefined>("readwrite", (store) => store.clear());
+export async function importConversations(records: LocalRecord[]): Promise<void> {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    for (const record of records) {
+      store.put(record);
+    }
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error("Browser storage import failed"));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error ?? new Error("Browser storage import was cancelled"));
+    };
+  });
+}

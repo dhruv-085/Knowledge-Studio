@@ -47,10 +47,18 @@ def test_loader_accepts_supported_text_extensions(
 
 
 def test_loader_rejects_unsupported_document_format(tmp_path: Path) -> None:
-    source = tmp_path / "auth.pdf"
-    source.write_bytes(b"not a parsed PDF")
+    source = tmp_path / "auth.docx"
+    source.write_bytes(b"not a parsed DOCX")
 
-    with pytest.raises(ValueError, match=r"unsupported document format: \.pdf"):
+    with pytest.raises(ValueError, match=r"unsupported document format: \.docx"):
+        load_document(source, document_id="auth-v1")
+
+
+def test_loader_rejects_corrupted_pdf(tmp_path: Path) -> None:
+    source = tmp_path / "auth.pdf"
+    source.write_bytes(b"not a valid PDF")
+
+    with pytest.raises(ValueError, match=r"could not read PDF"):
         load_document(source, document_id="auth-v1")
 
 

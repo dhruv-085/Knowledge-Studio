@@ -1,9 +1,8 @@
 """A small, inspectable teaching embedder."""
 
 from collections.abc import Sequence
-from typing import Protocol
-
-from sentence_transformers import SentenceTransformer
+from os import environ
+from typing import Any, Protocol
 
 from .vector_search import Vector
 
@@ -92,10 +91,128 @@ class TeachingEmbedder:
         return [self.embed(text) for text in texts]
 
 
+DEFAULT_GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-001"
+DEFAULT_EMBEDDING_DIMENSION = 768
+
+
+class GeminiEmbeddingProvider:
+    """Generate semantic vectors with Google's Gemini embeddings API."""
+
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        api_key: str | None = None,
+        dimension: int = DEFAULT_EMBEDDING_DIMENSION,
+        client: Any | None = None,
+    ) -> None:
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            load_dotenv = None
+
+        if load_dotenv is not None:
+            load_dotenv()
+
+        self.model = model or environ.get(
+            "GEMINI_EMBEDDING_MODEL", DEFAULT_GEMINI_EMBEDDING_MODEL
+        )
+        self.dimension = dimension
+        configured_key = api_key or environ.get("GEMINI_API_KEY")
+
+        if client is not None:
+            self.client = client
+            return
+
+        if not configured_key:
+            raise ValueError(
+                "GEMINI_API_KEY is required when using the Gemini embedding provider"
+            )
+
+        try:
+            from google import genai
+        except ImportError as error:
+            raise RuntimeError(
+                "The Gemini embedding provider requires the google-genai package. "
+                "Install the project requirements first."
+            ) from error
+
+        self.client = genai.Client(api_key=configured_key)
+
+    def embed(
+        self,
+        text: str,
+        *,
+        task_type: str = "RETRIEVAL_QUERY",
+    ) -> Vector:
+        """Encode one text value as a vector."""
+
+        if not text.strip():
+            raise ValueError("text must not be empty")
+
+        from google.genai import types
+
+        config = types.EmbedContentConfig(
+            output_dimensionality=self.dimension,
+            task_type=task_type,
+        )
+        response = self.client.models.embed_content(
+            model=self.model,
+            contents=text,
+            config=config,
+        )
+        if not response.embeddings:
+            raise RuntimeError("Gemini returned no embeddings")
+        return tuple(float(value) for value in response.embeddings[0].values)
+
+    def embed_many(
+        self,
+        texts: Sequence[str],
+        *,
+        task_type: str = "RETRIEVAL_DOCUMENT",
+    ) -> list[Vector]:
+        """Encode several text values in input order using batch embedding."""
+
+        if not texts:
+            return []
+
+        for index, text in enumerate(texts):
+            if not text.strip():
+                raise ValueError(f"text at index {index} must not be empty")
+
+        from google.genai import types
+
+        config = types.EmbedContentConfig(
+            output_dimensionality=self.dimension,
+            task_type=task_type,
+        )
+        response = self.client.models.embed_content(
+            model=self.model,
+            contents=list(texts),
+            config=config,
+        )
+        if not response.embeddings or len(response.embeddings) != len(texts):
+            raise RuntimeError(
+                f"Gemini returned {len(response.embeddings) if response.embeddings else 0} "
+                f"embeddings for {len(texts)} texts"
+            )
+        return [
+            tuple(float(value) for value in item.values)
+            for item in response.embeddings
+        ]
+
+
 class PretrainedSentenceEncoder:
     """Create semantic vectors with a pretrained sentence-transformer model."""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as error:
+            raise RuntimeError(
+                "PretrainedSentenceEncoder requires sentence-transformers and torch."
+            ) from error
+
         self.model_name = model_name
         self._model = SentenceTransformer(model_name)
         dimension = self._model.get_embedding_dimension()

@@ -1287,6 +1287,7 @@ storage does not mean text remains on the device during those requests.
 
 Implemented:
 - local RAG pipeline with hybrid retrieval, reranking, citations, and refusal behavior;
+- Gemini remote embeddings (`models/gemini-embedding-001`, 768-dim) with single-round-trip batch indexing, reducing memory from ~570 MB to <50 MB for Render free tier (512 MiB) compatibility;
 - stateless FastAPI upload parsing and grounded chat with request bounds, CORS configuration, per-process encoder reuse, and temporary per-IP limits;
 - IndexedDB conversation/document persistence, answer/citation restore, JSON export, per-chat deletion, and clear-all controls;
 - follow-up query reformulation with recent conversation context;

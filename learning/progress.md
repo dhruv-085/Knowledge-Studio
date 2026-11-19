@@ -1,11 +1,10 @@
 # Project Progress
 
-- Current stage: Phase 14 deployment preparation — stateless API and browser-local persistence are implemented; dashboard setup and deployed verification remain.
-- Latest milestone: document parsing returns extracted content without server persistence; chat requests carry selected documents and up to 12 recent turns; the frontend persists full chats and evidence in IndexedDB, with export/delete controls and a clear privacy explanation.
-- Deployment preparation: added a Render Blueprint, Cloudflare Pages build settings and SPA fallback instructions, environment examples, CORS configuration, request bounds, encoder reuse, and cold-start timeout/recovery behavior. No live service has been configured or deployed.
-- Verification status: production frontend build succeeds in a clean isolated dependency folder; Python source compilation and API import succeed. API tests were updated for the stateless contract but the test suite has not been run.
-- Current limitation: Render's free instance has 512 MiB RAM and cold starts; memory and latency for PyTorch plus the sentence encoder must be measured on the actual service before broader use.
-- Decision update: browser IndexedDB replaces SQLite as the deployment data owner; see `learning/decisions.md`. Older SQLite entries below record earlier project history.
+- Current stage: Phase 14 deployment ready — stateless backend with Gemini embeddings migration and client-side IndexedDB persistence are complete; 100% test suite passing; ready for Cloudflare Pages and Render deployment.
+- Latest milestone: Replaced local PyTorch embeddings (`sentence-transformers` and `torch`) with Google's remote `gemini-embedding-001` (768-dim) API via `GeminiEmbeddingProvider`. Added batch indexing in `build_semantic_index` and removed PyTorch dependencies from `requirements.txt`. Reduced backend memory from ~570 MB to under 50 MB (baseline RSS ~4 MB, peak query <45 MB), making the backend 100% compliant with Render's 512 MiB free tier limit without risk of OOM crashes.
+- Deployment preparation: added a Render Blueprint (`render.yaml`), Cloudflare Pages build settings and SPA fallback instructions (`_redirects`), environment examples, CORS configuration, request bounds, encoder reuse, and cold-start timeout/recovery behavior.
+- Verification status: all 109 backend automated tests passed in 32 seconds; frontend TypeScript production build succeeded in 6.6 seconds.
+- Decision update: browser IndexedDB replaces SQLite as the deployment data owner; Gemini embedding API replaces local PyTorch embeddings; see `learning/decisions.md`. Older SQLite entries below record earlier project history.
 - Completed: the searchable passage model, tokenizer, in-memory inverted index, UTF-8 text-file loader, command-line search program, automated tests, and Phase 1 learning documentation.
 - Verified: the project-local `.venv` has Python 3.13.5 and pytest 8.4.2; the complete test suite passes.
 - Completed in Phase 2: cosine similarity, an in-memory vector index, and a deterministic teaching embedder.

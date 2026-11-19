@@ -18,6 +18,42 @@ def build_semantic_index(
     records: list[VectorRecord] = []
     skipped_passage_ids: list[int] = []
 
+    if hasattr(embedder, "embed_many"):
+        valid_passages: list[Passage] = []
+        for passage in passages:
+            if not passage.text.strip():
+                skipped_passage_ids.append(passage.passage_id)
+            else:
+                valid_passages.append(passage)
+
+        if valid_passages:
+            try:
+                try:
+                    vectors = embedder.embed_many(
+                        [p.text for p in valid_passages],
+                        task_type="RETRIEVAL_DOCUMENT",
+                    )
+                except TypeError:
+                    vectors = embedder.embed_many([p.text for p in valid_passages])
+
+                for passage, vector in zip(valid_passages, vectors):
+                    records.append(
+                        VectorRecord(
+                            record_id=passage.passage_id,
+                            text=passage.text,
+                            vector=vector,
+                            document_id=passage.document_id,
+                            document_name=passage.document_name,
+                            source_path=passage.source_path,
+                            page_number=passage.page_number,
+                            section=passage.section,
+                        )
+                    )
+                return VectorIndex(records), tuple(skipped_passage_ids)
+            except ValueError:
+                records.clear()
+                skipped_passage_ids.clear()
+
     for passage in passages:
         try:
             vector = embedder.embed(passage.text)

@@ -16,12 +16,14 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.responses import JSONResponse
 
 from .document_loader import load_document, load_pdf_document
-from .embeddings import PretrainedSentenceEncoder
+from .embeddings import GeminiEmbeddingProvider, TeachingEmbedder
 from .multi_document_rag import DocumentInput, MultiDocumentRagPipeline
 from .conversation import ConversationMessage
 from .query_reformulation import reformulate_query
 from .generator import ExtractiveProvider
 from .gemini_provider import GeminiProvider
+
+PretrainedSentenceEncoder = GeminiEmbeddingProvider  # Backward-compatibility alias
 
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -262,7 +264,10 @@ def create_app(document_path: Path | None = None, *, database_path: Path | None 
             if app.state.encoder is None:
                 with app.state.encoder_lock:
                     if app.state.encoder is None:
-                        app.state.encoder = PretrainedSentenceEncoder()
+                        try:
+                            app.state.encoder = GeminiEmbeddingProvider()
+                        except ValueError:
+                            app.state.encoder = TeachingEmbedder()
             try:
                 provider = GeminiProvider()
             except ValueError:

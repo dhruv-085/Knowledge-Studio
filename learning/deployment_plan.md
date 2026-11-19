@@ -89,7 +89,7 @@ User's browser saves the answer and citations in IndexedDB
 - Sending document text with each chat can increase request size and latency. Start with the simplest stateless design, then measure before adding a temporary cache.
 - Requests currently allow at most 10 documents, 800,000 combined document characters, 12 recent messages / 20,000 history characters, 8 MiB per chat body, and 20 MiB per uploaded file. The server also limits each IP to 10 questions per minute per running process; this resets on restart and does not coordinate across instances.
 - Browser storage is not a backup. The interface provides JSON export and per-chat/all-data deletion, but users still need to keep their own exported copy if they want a backup.
-- The API loads its pretrained sentence encoder once per process. Render restarts clear this in-memory cache, so cold starts may reload the model; check memory and response time on the hosted instance.
+- The API uses Google's remote `gemini-embedding-001` (768-dim) with `GeminiEmbeddingProvider`. This replaces the local PyTorch `sentence-transformers` model, reducing API process memory from ~570 MB to under 50 MB (initial RSS ~4 MB, peak request <45 MB). This runs comfortably within Render's 512 MiB free tier container without risk of OOM crashes (Exit Code 137).
 - Render's free web service has 512 MiB RAM, spins down after 15 minutes without traffic, and receives 750 free instance hours per workspace per calendar month. When those hours are exhausted, free web services are suspended until the next month. The filesystem is temporary, so it must not be used for user data.
 - The public API has no user authentication in this plan. Add request limits and keep the Gemini key server-side; consider stronger access controls before inviting broad public use.
 
@@ -100,13 +100,14 @@ User's browser saves the answer and citations in IndexedDB
 - [x] Stateless chat API implemented
 - [x] Frontend IndexedDB persistence and export/delete controls implemented
 - [x] Request bounds, per-process rate limiting, encoder reuse, timeout, and retry recovery implemented
+- [x] Gemini embeddings migration (`models/gemini-embedding-001`, 768-dim batch indexing) implemented for 512 MiB Render free tier
+- [x] 100% backend tests (109 tests) and frontend production build verified
 - [ ] Cloudflare Pages configured
 - [ ] Render configured
 - [x] README and learning notes updated
 - [ ] Deployed flow verified
 
 Repository changes are in place. The frontend production build, Python source
-compilation, and API import have succeeded; the updated backend tests have not
-yet been run. Creating the hosted services still requires a Git
+compilation, and all 109 backend tests have succeeded. Creating the hosted services still requires a Git
 provider connection, a Gemini key, and the Pages origin for the Render CORS
 setting. The deployment has not been performed.

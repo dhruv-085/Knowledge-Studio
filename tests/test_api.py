@@ -8,8 +8,11 @@ from rag_assistant.api import create_app
 
 
 class FixedEncoder:
-    def embed(self, text: str) -> tuple[float, float]:
+    def embed(self, text: str, **kwargs) -> tuple[float, float]:
         return (1.0, 0.0)
+
+    def embed_many(self, texts: list[str], **kwargs) -> list[tuple[float, float]]:
+        return [(1.0, 0.0) for _ in texts]
 
 
 def no_gemini():
@@ -65,6 +68,7 @@ def test_pdf_upload_returns_page_text_for_browser_storage() -> None:
 
 
 def test_chat_accepts_browser_documents_and_returns_citations(monkeypatch) -> None:
+    monkeypatch.setattr(api, "GeminiEmbeddingProvider", FixedEncoder)
     monkeypatch.setattr(api, "PretrainedSentenceEncoder", FixedEncoder)
     monkeypatch.setattr(api, "GeminiProvider", no_gemini)
     client = TestClient(create_app())

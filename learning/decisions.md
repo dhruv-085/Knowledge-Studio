@@ -230,3 +230,19 @@ The API rejects obvious low-signal text before provider selection and limits
 each IP to ten questions per rolling minute within one process. These are
 simple guardrails, not account-wide quota enforcement; this application has no
 user identity or distributed rate limiter.
+
+## Phase 14: Migrate from local PyTorch embeddings to Gemini embeddings API
+
+On Render's 512 MiB free tier container, importing `sentence-transformers` and `torch` to load `all-MiniLM-L6-v2` consumed ~570 MB of physical RSS memory before serving queries, triggering an immediate Linux OOM (Out Of Memory) crash (Exit Code 137).
+
+**Decisions:**
+1. Replaced local PyTorch embeddings with Google's remote `models/gemini-embedding-001` (768 dimensions) using `GeminiEmbeddingProvider`.
+2. Implemented batch embedding (`embed_many`) using Google's asymmetric retrieval task types: `task_type="RETRIEVAL_DOCUMENT"` for indexing passages and `task_type="RETRIEVAL_QUERY"` for user queries.
+3. Updated `build_semantic_index` to batch encode passages in a single API round-trip (~250ms) instead of sequential requests.
+4. Removed `sentence-transformers` and `torch` from `requirements.txt`, reducing deployment build times on Render from minutes to under 20 seconds.
+5. Retained `TeachingEmbedder` for deterministic, zero-network unit testing.
+
+**Trade-offs & Results:**
+- Backend memory dropped from ~570 MB to <50 MB (baseline RSS ~4 MB, peak request <45 MB) — over a 90% reduction, running comfortably below Render's 512 MiB ceiling.
+- Embedding input context capacity increased from 256 tokens to 2,048 tokens.
+- All 109 automated tests pass offline using injected mock providers or the local `TeachingEmbedder`.

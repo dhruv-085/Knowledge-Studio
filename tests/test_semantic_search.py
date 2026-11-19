@@ -83,3 +83,36 @@ def test_semantic_index_accepts_an_encoder_other_than_the_teaching_embedder() ->
 
     assert skipped_ids == ()
     assert results[0].record.record_id == 1
+
+
+class BatchRecordingEncoder:
+    def __init__(self) -> None:
+        self.recorded_batch: list[str] | None = None
+        self.recorded_task_type: str | None = None
+
+    def embed(self, text: str) -> tuple[float, ...]:
+        return (1.0, 0.0)
+
+    def embed_many(
+        self,
+        texts: list[str],
+        *,
+        task_type: str = "RETRIEVAL_DOCUMENT",
+    ) -> list[tuple[float, ...]]:
+        self.recorded_batch = list(texts)
+        self.recorded_task_type = task_type
+        return [(1.0, 0.0) for _ in texts]
+
+
+def test_semantic_index_uses_batch_embed_many_when_available() -> None:
+    passages = [
+        Passage(1, "Passage one text"),
+        Passage(2, "Passage two text"),
+    ]
+    encoder = BatchRecordingEncoder()
+    index, skipped_ids = build_semantic_index(passages, encoder)
+
+    assert skipped_ids == ()
+    assert encoder.recorded_batch == ["Passage one text", "Passage two text"]
+    assert encoder.recorded_task_type == "RETRIEVAL_DOCUMENT"
+    assert len(index.search((1.0, 0.0), limit=2)) == 2

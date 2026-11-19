@@ -1261,11 +1261,12 @@ API call or expose a real key.
 
 ## Phase 11: upload documents through the API
 
-The FastAPI service accepts PDF, TXT, and Markdown files, lists uploaded
-documents, reports their readiness, and runs chat over the current collection.
-Uploads are capped at 20 MiB. Extracted text and provenance are stored in
-`data/assistant.sqlite3`, so documents survive an API restart on a machine with
-persistent local storage. The original uploaded binary is not stored.
+The deployment API accepts PDF, TXT, and Markdown files and returns extracted
+text and metadata to the browser. It does not list or persist user documents.
+The browser stores each conversation, document text, PDF page text, messages,
+citations, and retrieved evidence in IndexedDB. JSON export and clear/delete
+controls keep that browser-owned data manageable. The original uploaded file
+binary is not kept after parsing.
 
 PDFs are extracted page by page. That page number travels with each passage
 through retrieval and appears in citations. A scanned PDF contains page images
@@ -1274,39 +1275,38 @@ it and explains that OCR is needed.
 
 ## Conversations and the web interface
 
-Conversations, messages, answer citations, and retrieved passage text are saved
-in SQLite. Uploaded documents are linked to one conversation, so a new chat
-starts with an empty source collection. The API reformulates common pronoun
-follow-ups for retrieval and gives recent saved turns plus retrieved evidence
-to Gemini. If no Gemini key is configured, the local extractive provider
-remains available. The React interface restores message and source history
-from the API; it does not invent assistant turns in the browser.
+The browser attaches uploaded documents to one conversation, so a new chat
+starts with an empty source collection. Each chat request includes selected
+documents and up to 12 recent messages. The API reformulates common pronoun
+follow-ups for retrieval, then sends selected evidence to Gemini when a key is
+configured. Without a key, the local extractive provider remains available.
+Render receives document text during parsing and chat processing; browser
+storage does not mean text remains on the device during those requests.
 
 # Current Project State
 
 Implemented:
 - local RAG pipeline with hybrid retrieval, reranking, citations, and refusal behavior;
-- FastAPI uploads, per-conversation document lists, persistent conversations, and grounded chat;
-- follow-up query reformulation and recent conversation context in generation;
-- React/TypeScript chat UI with isolated uploads, saved history, expandable sources, draft chats, stable first-question titles, chat deletion, and a collapsible workspace panel;
-- immediate user-message display, explicit UTC timestamp handling in the Asia/Kolkata display timezone, and basic accidental-input / per-chat rate safeguards;
-- PDF text extraction with page-number provenance.
+- stateless FastAPI upload parsing and grounded chat with request bounds, CORS configuration, per-process encoder reuse, and temporary per-IP limits;
+- IndexedDB conversation/document persistence, answer/citation restore, JSON export, per-chat deletion, and clear-all controls;
+- follow-up query reformulation with recent conversation context;
+- PDF text extraction with page-number provenance and an in-interface data transmission explanation.
 
 Not implemented yet:
-- OCR for scanned PDFs, PDF download/source viewing, and production deployment/operations.
+- OCR for scanned PDFs, source-file download/viewing, live Cloudflare/Render dashboard setup, deployed-flow verification, authentication, and a distributed rate limiter.
 
 ## Chat behavior and request safeguards
 
 An empty chat is kept as a browser draft and is only saved when a document is
 added or a message is sent. The first user message is the stable chat title.
-Messages are shown optimistically in the interface; the API saves the user
-message before running retrieval and generation so it remains visible during
-slow model responses.
+The browser saves the user's question before waiting for generation so it
+remains visible during a slow response. If the request fails, it removes the
+pending turn from saved chat history and restores the text in the composer.
 
-SQLite's `CURRENT_TIMESTAMP` is UTC. The API marks timestamps with `Z`, and the
-interface formats them in `Asia/Kolkata`; a timezone marker prevents browsers
-from treating a UTC time as local time. The API also rejects obvious low-signal
-input before provider selection and allows at most ten questions per chat in a
-rolling minute. These checks reduce accidental calls but do not replace
-provider-level quotas or account-wide rate limiting.
+The API rejects obvious low-signal input and allows at most ten questions per
+IP in a rolling minute in one running process. This is a lightweight abuse
+guard; it resets on restart and does not coordinate across instances. The chat
+request is capped at 8 MiB, accepts at most 10 documents (800,000 combined
+text characters), and limits recent history to 12 messages and 20,000
+characters. The frontend restores failed questions to the composer for retry.
 

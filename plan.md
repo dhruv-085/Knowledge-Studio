@@ -496,9 +496,11 @@ The vector index may remain a separate local or dedicated store depending on the
 
 ### Phase 13 — Frontend
 
-**Status:** First local React/TypeScript vertical slice is implemented. The UI
-uses conversation-scoped uploads, persistent messages, grounded answer
-metadata, and expandable source cards. See `README.md` for local startup steps.
+**Status:** The React/TypeScript vertical slice is implemented. Conversation,
+document, message, citation, and evidence records are stored in browser
+IndexedDB. The stateless API parses uploads and receives selected documents
+and recent history with each chat request. See `README.md` and
+`learning/deployment_plan.md` for local and deployment setup.
 
 **Outcome:** A React/TypeScript interface supports document upload, chat, source inspection, and conversation selection. Implement the first useful vertical slice directly against the FastAPI service; keep polish and scope focused on a single user and local development.
 
@@ -513,16 +515,26 @@ The first frontend should remain intentionally small and usable:
 - expandable source citations; and
 - clear feedback when evidence is insufficient.
 
-The API contract for this phase is:
+The API contract for this deployment is:
 
-- `GET/POST /conversations` to restore or start an isolated chat;
-- `GET /conversations/{id}/messages` to restore saved turns and answer sources;
-- `GET/POST /documents?conversation_id={id}` to list or attach files to that chat;
-- `POST /chat` with the active conversation ID to answer from its sources and recent history.
+- `POST /documents` parses an upload and returns extracted text, metadata, and PDF page text;
+- `POST /chat` receives the active conversation ID, selected documents, and recent history, then returns an answer with citations and retrieved evidence;
+- `GET /health` supports service health checks.
+
+Browser storage is the source of conversation persistence for this deployment.
+The earlier Phase 12 proposal for server-side PostgreSQL persistence is
+deferred; revisit it if the product adds accounts, cross-device sync, or
+shared/team data.
 
 Fast-track rule: ship the working experience in small vertical slices. Keep learning notes to a concise state/decision update at meaningful milestones. Do not add accounts, streaming, a separate design system, or deployment infrastructure in this phase. The user has authorized autonomous file changes, so implementation can proceed without presenting each patch for approval.
 
 ### Phase 14 — Production concerns
+
+**Status:** Deployment preparation has begun. The API is stateless for user
+data, requests are bounded, process-local encoder reuse and rate limiting are
+implemented, and Render/Pages settings are documented. External dashboard
+configuration and deployed-flow verification remain outstanding. Track them
+in `learning/deployment_plan.md`.
 
 **Outcome:** The application is packaged and operated more like a real service.
 

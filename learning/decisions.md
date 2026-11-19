@@ -1,5 +1,33 @@
 # Engineering Decisions
 
+## Keep user data in IndexedDB for the Pages + Render deployment
+
+For the deployment path, the browser owns uploaded document text and
+conversation data. IndexedDB stores document metadata and extracted text,
+PDF page text, messages, citations, and retrieved evidence. The API parses
+uploads and answers chat requests without writing that user content to disk.
+This avoids relying on Render's temporary filesystem and keeps browser profiles
+separate without adding accounts or a database. The trade-off is that browser
+data does not sync, can be cleared by the user or browser, and is not a backup;
+the UI therefore offers JSON export and deletion controls. Each chat request
+transmits its selected documents and recent history to Render, and Gemini gets
+the evidence supplied for generation. This deployment decision supersedes the
+earlier SQLite-backed API persistence decision below; the SQLite store modules
+remain historical learning code and are no longer used by the HTTP API.
+
+## Bound stateless requests and cache the encoder per process
+
+The API caps uploads at 20 MiB, extracted documents at 800,000 characters,
+conversation document text at 800,000 characters, recent history at 12 turns
+and 20,000 characters, and JSON chat bodies at 8 MiB. A small per-IP rolling
+limit is held in process memory, so it resets on restart and is not shared
+between multiple service instances. On Render, the limiter keys on the edge's
+`CF-Connecting-IP` value; locally it uses the direct client address. The
+pretrained sentence encoder is loaded
+once per process under a lock; it is a temporary performance cache, not user
+data. These limits bound accidental and abusive work but do not replace
+authentication or a distributed rate limiter.
+
 ## Use SQLite for the first persistent demo
 
 The API stores extracted document text and provenance in a local SQLite file.
@@ -172,16 +200,16 @@ message because silently indexing empty text would create confusing retrieval
 failures. Uploaded documents are kept in memory for this learning milestone;
 they disappear on restart and will become durable in Phase 12.
 
-# Conversation source isolation
+# Conversation source isolation (local-demo decision, superseded for persistence)
 
 Documents uploaded from the UI are associated with the active conversation in
-SQLite. This keeps a new chat's retrieval collection empty and gives users a
-clear boundary for source context. Existing unscoped document and chat API
-calls remain available for the earlier local demo behavior.
+the browser's IndexedDB record. This keeps a new chat's retrieval collection
+empty and gives users a clear boundary for source context. The earlier SQLite
+linking applied to the local API demo and is no longer used for deployment.
 
 # Conversation context boundary
 
-The API passes the most recent six exchanges to grounded generation and uses
+The browser passes up to 12 recent messages (at most six exchanges) to grounded generation and uses
 the existing lightweight query reformulator before retrieval. The original
 question remains the answer question; the reformulated version is only the
 retrieval query. Gemini is selected when configured; the extractive provider
@@ -194,11 +222,11 @@ question. This prevents an empty sidebar entry for every click on â€œNew chat.â€
 The first user message supplies the title, because later messages should not
 rename an existing conversation.
 
-User messages render optimistically and are saved by the API before retrieval
-and generation. A failed generation can therefore leave a saved user message
-without an answer; that is more truthful than hiding a message the user sent.
+User messages render optimistically and are saved in IndexedDB before retrieval
+and generation. If a request fails, the pending turn is removed from the saved
+history and its text is restored in the composer so the user can retry it.
 
 The API rejects obvious low-signal text before provider selection and limits
-each chat to ten questions per rolling minute. These are simple guardrails for
-accidental use, not account-wide quota enforcement; this local application has
-no user identity or distributed rate limiter.
+each IP to ten questions per rolling minute within one process. These are
+simple guardrails, not account-wide quota enforcement; this application has no
+user identity or distributed rate limiter.

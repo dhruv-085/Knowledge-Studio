@@ -19,6 +19,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import {
+  clearConversations,
+  getAllConversations,
+  getConversation,
+  removeConversation,
+  saveConversation,
+  type LocalRecord,
+} from "./localStore";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const SHORT_TECHNICAL_TERMS = new Set([
@@ -34,6 +42,8 @@ type Conversation = {
   conversation_id: string;
   created_at?: string;
   first_message?: string | null;
+  documents: Document[];
+  turns: Turn[];
 };
 type Message = {
   message_id: number;
@@ -51,6 +61,8 @@ type Document = {
   file_type: string;
   status: string;
   page_count: number | null;
+  text: string;
+  page_texts: { page_number: number; text: string }[];
 };
 type Citation = {
   document_id: string;
@@ -112,8 +124,23 @@ function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
+  const recordFor = (id: string, docs = documents, turns = messages): LocalRecord => ({
+    conversation_id: id,
+    created_at: conversations.find((item) => item.conversation_id === id)?.created_at || new Date().toISOString(),
+    first_message: turns.find((turn) => turn.message.role === "user")?.message.content || null,
+    documents: docs,
+    messages: turns,
+  });
+
   const refreshConversations = async () => {
-    const items = await api<Conversation[]>("/conversations");
+    const records = await getAllConversations();
+    const items: Conversation[] = records.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((record) => ({
+      conversation_id: record.conversation_id,
+      created_at: record.created_at,
+      first_message: record.first_message,
+      documents: record.documents as Document[],
+      turns: record.messages as Turn[],
+    }));
     setConversations(items);
     return items;
   };
@@ -130,23 +157,10 @@ function App() {
     setError("");
     setOpenSources(null);
     try {
-      const [saved, docs] = await Promise.all([
-        api<Message[]>(`/conversations/${id}/messages`),
-        api<Document[]>(`/documents?conversation_id=${encodeURIComponent(id)}`),
-      ]);
-      setDocuments(docs);
-      setMessages(
-        saved.map((message) => ({
-          message,
-          citations:
-            message.role === "assistant" ? message.citations : undefined,
-          evidence:
-            message.role === "assistant"
-              ? message.retrieved_evidence
-              : undefined,
-          refused: message.role === "assistant" ? message.refused : undefined,
-        })),
-      );
+      const record = await getConversation(id);
+      if (!record) throw new Error("This conversation is no longer in this browser");
+      setDocuments(record.documents as Document[]);
+      setMessages(record.messages as Turn[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load this chat");
     }
@@ -164,12 +178,13 @@ function App() {
     setActive(null);
     setMessages([]);
     setDocuments([]);
+    setQuestion("");
     setOpenSources(null);
   };
 
   const deleteConversation = async (id: string) => {
     try {
-      await api<void>(`/conversations/${id}`, { method: "DELETE" });
+      await removeConversation(id);
       const remaining = conversations.filter(
         (item) => item.conversation_id !== id,
       );
@@ -185,17 +200,14 @@ function App() {
   };
 
   useEffect(() => {
-    refreshConversations()
+    void refreshConversations()
       .then((items) => {
-        setConnected(true);
         if (items.length) void openConversation(items[0].conversation_id);
       })
-      .catch(() => {
-        setConnected(false);
-        setError(
-          "Can’t reach the assistant API. Start the backend, then refresh this page.",
-        );
-      });
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not read this browser's saved chats"));
+    void api<{ status: string }>("/health")
+      .then(() => setConnected(true))
+      .catch(() => setConnected(false));
   }, []);
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -207,31 +219,50 @@ function App() {
     if (!files.length) return;
     setError("");
     setUploading(true);
+    let conversationId = active;
+    let createdNewConversation = false;
+    let currentDocs = documents;
     try {
-      let conversationId = active;
       if (!conversationId) {
-        const created = await api<{ conversation_id: string }>(
-          "/conversations",
-          { method: "POST" },
-        );
-        conversationId = created.conversation_id;
+        conversationId = crypto.randomUUID();
+        createdNewConversation = true;
         setActive(conversationId);
         setMessages([]);
+        await saveConversation(recordFor(conversationId, [], []));
+      }
+      if (currentDocs.length + files.length > 10) {
+        throw new Error("A conversation can contain up to 10 documents.");
+      }
+      const oversizedFile = files.find((file) => file.size > 20 * 1024 * 1024);
+      if (oversizedFile) {
+        throw new Error(`${oversizedFile.name} is larger than the 20 MiB upload limit.`);
       }
       for (const file of files) {
+        if (currentDocs.length >= 10) {
+          throw new Error("A conversation can contain up to 10 documents.");
+        }
         const form = new FormData();
         form.append("file", file);
-        await api<Document>(
-          `/documents?conversation_id=${encodeURIComponent(conversationId)}`,
+        const document = await api<Document>(
+          "/documents",
           { method: "POST", body: form },
         );
+        const next = [...currentDocs, document];
+        if (next.reduce((sum, item) => sum + item.text.length, 0) > 800_000) {
+          throw new Error("Combined extracted text for this conversation cannot exceed 800,000 characters.");
+        }
+        currentDocs = next;
+        setDocuments(next);
+        await saveConversation(recordFor(conversationId, next, messages));
       }
-      const docs = await api<Document[]>(
-        `/documents?conversation_id=${encodeURIComponent(conversationId)}`,
-      );
-      setDocuments(docs);
       await refreshConversations();
     } catch (e) {
+      if (createdNewConversation && conversationId && !currentDocs.length) {
+        await removeConversation(conversationId);
+        setActive(null);
+      } else {
+        await refreshConversations().catch(() => undefined);
+      }
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
@@ -254,26 +285,24 @@ function App() {
     const temporaryId = Date.now();
     const now = new Date().toISOString();
     const draftId = active || `draft-${temporaryId}`;
+    const userTurn: Turn = {
+      message: {
+        message_id: temporaryId,
+        conversation_id: draftId,
+        role: "user",
+        content: text,
+        created_at: now,
+      },
+    };
+    const historyBeforeQuestion = messages;
     setMessages((previous) => [
       ...previous,
-      {
-        message: {
-          message_id: temporaryId,
-          conversation_id: draftId,
-          role: "user",
-          content: text,
-          created_at: now,
-        },
-      },
+      userTurn,
     ]);
     let conversationId = active;
     try {
       if (!conversationId) {
-        const created = await api<{ conversation_id: string }>(
-          "/conversations",
-          { method: "POST" },
-        );
-        conversationId = created.conversation_id;
+        conversationId = crypto.randomUUID();
         setActive(conversationId);
         setMessages((previous) =>
           previous.map((turn) =>
@@ -289,6 +318,10 @@ function App() {
           ),
         );
       }
+      const nextUserTurn = { ...userTurn, message: { ...userTurn.message, conversation_id: conversationId } };
+      const before = [...historyBeforeQuestion];
+      const withUser = [...before, nextUserTurn];
+      await saveConversation(recordFor(conversationId, documents, withUser));
       const result = await api<{
         conversation_id: string;
         answer: string;
@@ -301,11 +334,20 @@ function App() {
         body: JSON.stringify({
           question: text,
           conversation_id: conversationId,
+          documents: documents.map((document) => ({
+            document_id: document.document_id,
+            document_name: document.filename,
+            text: document.text,
+            page_texts: document.page_texts,
+          })),
+          history: before.slice(-12).map((turn) => ({
+            role: turn.message.role,
+            content: turn.message.content,
+          })),
         }),
+        signal: AbortSignal.timeout(180_000),
       });
-      setMessages((previous) => [
-        ...previous,
-        {
+      const assistantTurn: Turn = {
           message: {
             message_id: Date.now(),
             conversation_id: result.conversation_id,
@@ -316,14 +358,41 @@ function App() {
           citations: result.citations,
           evidence: result.retrieved_evidence,
           refused: result.refused,
-        },
-      ]);
+      };
+      const finalTurns = [...withUser, assistantTurn];
+      setMessages(finalTurns);
+      await saveConversation(recordFor(conversationId, documents, finalTurns));
       await refreshConversations();
     } catch (e) {
+      const restoredTurns = messages.filter((turn) => turn.message.message_id !== temporaryId);
+      setMessages(restoredTurns);
+      if (conversationId) {
+        void saveConversation(recordFor(conversationId, documents, restoredTurns));
+      }
+      setQuestion(text);
       setError(e instanceof Error ? e.message : "Could not get an answer");
     } finally {
       setBusy(false);
     }
+  };
+
+  const exportData = async () => {
+    const records = await getAllConversations();
+    const file = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), conversations: records }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "leo-browser-data.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearAllData = async () => {
+    if (!window.confirm("Delete every saved conversation and uploaded document from this browser? This cannot be undone.")) return;
+    await clearConversations();
+    setConversations([]);
+    startNewChat();
+    setError("");
   };
 
   const activeConversation = conversations.find(
@@ -382,7 +451,7 @@ function App() {
             </button>
           </div>
         </div>
-        <button className="new-chat" onClick={startNewChat}>
+        <button className="new-chat" onClick={startNewChat} disabled={busy || uploading}>
           <Plus size={17} />
           <span>New chat</span>
         </button>
@@ -400,6 +469,7 @@ function App() {
             >
               <button
                 className="conversation-item"
+                disabled={busy || uploading}
                 onClick={() => void openConversation(item.conversation_id)}
               >
                 <MessageSquareText size={15} />
@@ -410,6 +480,7 @@ function App() {
                 className="delete-chat"
                 title="Delete chat"
                 aria-label={`Delete ${titleFor(item)}`}
+                disabled={busy || uploading}
                 onClick={() => void deleteConversation(item.conversation_id)}
               >
                 <Trash2 size={14} />
@@ -417,17 +488,21 @@ function App() {
             </div>
           ))}
         </div>
+        <div className="local-data-controls">
+          <button onClick={() => void exportData()} disabled={!conversations.length}>Export browser data</button>
+          <button onClick={() => void clearAllData()} disabled={!conversations.length}>Clear all browser data</button>
+        </div>
         <div className="sidebar-bottom">
           <div className="api-status">
             <span className={connected ? "status-dot" : "status-dot offline"} />
-            <span>{connected ? "Assistant ready" : "API unavailable"}</span>
+              <span>{connected ? "Assistant ready" : "API unavailable"}</span>
             <Activity size={14} />
           </div>
           <div className="profile">
             <div className="avatar">K</div>
             <div>
               <b>Knowledge workspace</b>
-              <span>Local and private</span>
+              <span>Saved in this browser</span>
             </div>
           </div>
         </div>
@@ -468,6 +543,9 @@ function App() {
 
         <section className="conversation-area">
           <div className="chat-column">
+            <div className="privacy-notice" role="note">
+              <b>Your data stays in this browser.</b> Documents and chats are saved in this browser profile and can be lost if its data is cleared. When you ask a question, selected document text and recent turns are sent to the assistant service; relevant evidence is sent to Gemini when configured. Don’t upload information you are not allowed to share.
+            </div>
             {messages.length === 0 && documents.length === 0 ? (
               <div className="welcome">
                 <div className="welcome-orb">
@@ -487,7 +565,7 @@ function App() {
                   Every answer is grounded in your sources.
                 </p>
                 <div className="welcome-actions">
-                  <button onClick={() => fileInput.current?.click()}>
+                  <button onClick={() => fileInput.current?.click()} disabled={busy || uploading}>
                     <FileUp size={16} /> Add documents
                   </button>
                   <span>PDF · TXT · Markdown</span>
@@ -642,8 +720,9 @@ function App() {
             )}
             <div className="composer-wrap">
               <form className="composer" onSubmit={sendQuestion}>
-                <textarea
+                  <textarea
                   value={question}
+                  disabled={busy || uploading}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -664,13 +743,13 @@ function App() {
                       type="button"
                       className="attach-button"
                       onClick={() => fileInput.current?.click()}
-                      disabled={uploading}
+                      disabled={busy || uploading}
                     >
                       <Plus size={16} />
                       <span>Add sources</span>
                     </button>
                     <span className="hint-divider" />{" "}
-                    <span>Answers grounded in this chat’s sources</span>
+                    <span>Answers grounded in this chat’s sources · first reply may take a moment</span>
                   </div>
                   <button
                     className="send-button"
@@ -695,6 +774,7 @@ function App() {
           accept=".pdf,.txt,.md,.markdown"
           multiple
           hidden
+          disabled={busy || uploading}
           onChange={uploadFiles}
         />
       </main>

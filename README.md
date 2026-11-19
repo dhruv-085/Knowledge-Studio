@@ -241,26 +241,24 @@ $env:PYTHONPATH = "src"
 uvicorn rag_assistant.api:app --reload
 ```
 
-The API stores uploaded documents in `data/assistant.sqlite3`. The collection
-survives API restarts on this machine. TXT, Markdown, and text-based PDFs are
-accepted (up to 20 MiB):
+The API parses TXT, Markdown, and text-based PDF uploads (up to 20 MiB) and
+returns extracted text plus PDF page text to the browser. It does not persist
+uploads or conversations. The chat endpoint receives selected documents and
+up to 12 recent messages with each request:
 
 ```powershell
 curl.exe -F "file=@data/phase-1-example.txt" http://127.0.0.1:8000/documents
-curl.exe http://127.0.0.1:8000/documents
 curl.exe -X POST http://127.0.0.1:8000/chat `
   -H "Content-Type: application/json" `
-  -d '{"question":"What does MAX_RETRIES control?","limit":1}'
+  -d '{"question":"What does MAX_RETRIES control?","documents":[{"document_id":"doc-1","document_name":"guide.txt","text":"MAX_RETRIES controls the number of attempts."}],"history":[]}'
 ```
 
-`GET /documents/{document_id}` reports one document's ingestion state. The
-chat response includes the answer, refusal state, retrieved evidence, and
-structured citations. PDF citations retain the original 1-based page number.
-The database stores extracted text and provenance, including page text for PDF
-citations. It does not store the original uploaded file. Keep the SQLite file
-when moving the demo to another machine. A deployed backend needs persistent
-disk storage for this file; temporary hosting storage can be cleared on restart.
-Image-only scanned PDFs need OCR, which is not included yet.
+The browser stores extracted document text, PDF page text, conversations,
+messages, citations, and retrieved evidence in IndexedDB. Use the sidebar
+controls to export saved data as JSON or delete chats and documents. The
+assistant sends document text to the API for each question; when Gemini is
+configured, selected evidence is sent there for generation. Scanned PDFs need
+OCR, which is not included.
 
 ## Web interface
 
@@ -274,14 +272,35 @@ uvicorn rag_assistant.api:app --reload
 
 # Window 2: frontend
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`). The UI
-creates isolated conversations, attaches each uploaded document to the active
-conversation, restores saved message/source history, and sends recent turns
-along with retrieved evidence to Gemini when `GEMINI_API_KEY` is configured.
-Without a key, the local extractive provider remains available. Set
-`VITE_API_URL` in a frontend `.env` file if the API is not at
-`http://127.0.0.1:8000`.
+Open the local URL printed by Vite (normally `http://localhost:5173`). Each
+browser profile has its own local conversation history. Without a Gemini key,
+the local extractive provider remains available. Set `VITE_API_URL` in
+`frontend/.env` if the API is not at `http://127.0.0.1:8000`.
+
+## Prepare Cloudflare Pages and Render
+
+The repository includes a Render Blueprint at `render.yaml`. Connect the repo
+to Render and create the service from that Blueprint. Set `GEMINI_API_KEY` and
+`ALLOWED_ORIGINS` in Render's environment settings. `ALLOWED_ORIGINS` must
+include the exact Cloudflare Pages origin (for example,
+`https://your-project.pages.dev`) and local Vite origins when local access is
+needed. The Gemini key belongs only in Render; `VITE_API_URL` is public frontend
+configuration, not a secret.
+
+Create a Cloudflare Pages project with root directory `frontend`, build command
+`npm ci && npm run build`, and output directory `dist`. Set the Pages build
+variable `VITE_API_URL` to the Render service URL, then rebuild. After Pages
+creates its `pages.dev` URL, add that origin to Render's `ALLOWED_ORIGINS` and
+redeploy the API. The `frontend/public/_redirects` file supports SPA fallback.
+
+For local production-build checks, run `npm ci && npm run build` from
+`frontend`. Render's free service can spin down after 15 idle minutes and has
+512 MiB RAM; the first request may be slow while the sentence encoder loads.
+Measure memory and cold-start latency on the actual service before inviting
+broader use. The API has no user authentication, and its per-IP rate limit is
+temporary and per process; this is a learning deployment, not an access
+controlled public service.
